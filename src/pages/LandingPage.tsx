@@ -242,28 +242,28 @@ export default function LandingPage() {
             className="text-center mb-16"
           >
             <h2 className="text-3xl font-bold text-gray-900 mb-4">What Our Users Say</h2>
-            <p className="text-xl text-gray-600">Trusted by healthcare professionals and patients worldwide</p>
+            <p className="text-xl text-gray-600">Trusted by healthcare professionals and patients across Kenya</p>
           </motion.div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {[
               {
-                name: "Dr. Sarah Johnson",
-                role: "Cardiologist",
-                image: "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1760&q=80",
-                quote: "This AI tool has revolutionized how I approach early disease detection. The accuracy is remarkable."
+                name: "Dr. Wanjiku Kamau",
+                role: "Cardiologist, Nairobi Hospital",
+                image: "https://images.unsplash.com/photo-1592520113018-180c8bc831c9?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=800&q=80",
+                quote: "This AI tool has transformed our approach to early disease detection at Nairobi Hospital. The accuracy is remarkable even with our unique patient demographics."
               },
               {
-                name: "Michael Chen",
-                role: "Patient",
-                image: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1760&q=80",
-                quote: "The early warning system helped me identify a potential health issue months before it became serious."
+                name: "Mwangi Kariuki",
+                role: "Patient, Mombasa",
+                image: "https://images.unsplash.com/photo-1531384441138-2736e62e0919?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=800&q=80",
+                quote: "The early warning system helped me identify a potential health issue before it became serious. It's making quality healthcare more accessible across Kenya."
               },
               {
-                name: "Dr. Emily Williams",
-                role: "Research Director",
-                image: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1760&q=80",
-                quote: "The AI predictions have shown remarkable accuracy in our clinical trials. A game-changer in preventive care."
+                name: "Dr. Akinyi Odhiambo",
+                role: "Research Director, Kenya Medical Research Institute",
+                image: "https://images.unsplash.com/photo-1613876215075-276fd62c89a4?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=800&q=80",
+                quote: "The AI predictions have shown remarkable accuracy in our clinical trials in Kisumu. This is a game-changer for preventive healthcare in East Africa."
               }
             ].map((testimonial, index) => (
               <motion.div
