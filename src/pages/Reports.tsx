@@ -1,13 +1,75 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Activity, BarChart2, Calendar, Brain, FileText, Settings, Download, Filter, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase';
 import { useNavigate } from 'react-router-dom';
+import { useUser } from '@/lib/useUser';
+
+interface Report {
+  id: string;
+  user_id: string;
+  title: string;
+  type: string;
+  doctor: string;
+  file_url: string;
+  file_size: string;
+  created_at: string;
+}
 
 export default function Reports() {
   const navigate = useNavigate();
+  const { user } = useUser();
   const [loading, setLoading] = useState(false);
+  const [reports, setReports] = useState<Report[]>([]);
+  const [fetchingReports, setFetchingReports] = useState(true);
+
+  useEffect(() => {
+    if (user) {
+      fetchReports();
+    }
+  }, [user]);
+
+  const fetchReports = async () => {
+    setFetchingReports(true);
+    try {
+      const { data, error } = await supabase
+        .from('reports')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setReports(data || []);
+    } catch (err) {
+      console.error('Error fetching reports:', err);
+    } finally {
+      setFetchingReports(false);
+    }
+  };
+
+  const handleDownload = async (fileUrl: string, title: string) => {
+    try {
+      const { data, error } = await supabase.storage
+        .from('reports')
+        .download(fileUrl);
+
+      if (error) throw error;
+
+      // Create a download link
+      const blob = new Blob([data], { type: 'application/pdf' });
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = `${title}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(downloadUrl);
+    } catch (err) {
+      console.error('Error downloading report:', err);
+    }
+  };
 
   const handleSignOut = async () => {
     setLoading(true);
@@ -92,67 +154,61 @@ export default function Reports() {
             <h2 className="text-lg font-semibold text-gray-900">Your Health Reports</h2>
           </div>
           <div className="divide-y divide-gray-200">
-            {[
-              { 
-                date: 'Mar 10, 2023', 
-                title: 'Quarterly Health Assessment', 
-                type: 'Comprehensive', 
-                size: '2.4 MB',
-                doctor: 'Dr. Sarah Johnson'
-              },
-              { 
-                date: 'Feb 15, 2023', 
-                title: 'Blood Work Analysis', 
-                type: 'Laboratory', 
-                size: '1.8 MB',
-                doctor: 'Dr. Michael Chen'
-              },
-              { 
-                date: 'Jan 22, 2023', 
-                title: 'Cardiovascular Risk Assessment', 
-                type: 'Specialized', 
-                size: '3.2 MB',
-                doctor: 'Dr. Emily Rodriguez'
-              },
-              { 
-                date: 'Dec 05, 2022', 
-                title: 'Annual Physical Examination', 
-                type: 'Comprehensive', 
-                size: '4.5 MB',
-                doctor: 'Dr. Sarah Johnson'
-              },
-            ].map((report, index) => (
-              <motion.div 
-                key={index} 
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: index * 0.1 }}
-                className="p-6 hover:bg-gray-50 transition-colors"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center">
-                      <FileText className="h-5 w-5 text-blue-600" />
+            {fetchingReports ? (
+              <div className="p-8 text-center">
+                <p className="text-gray-500">Loading reports...</p>
+              </div>
+            ) : reports.length > 0 ? (
+              <div className="divide-y divide-gray-200">
+                {reports.map((report, index) => (
+                  <motion.div 
+                    key={report.id} 
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: index * 0.1 }}
+                    className="p-6 hover:bg-gray-50 transition-colors"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <div className="h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center">
+                          <FileText className="h-5 w-5 text-blue-600" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">
+                            {report.title}
+                          </p>
+                          <p className="text-sm text-gray-600">
+                            {report.type} • By {report.doctor}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center">
+                        <span className="text-sm text-gray-500 mr-4">
+                          {new Date(report.created_at).toLocaleDateString('en-US', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: '2-digit'
+                          })} • {report.file_size}
+                        </span>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="flex items-center"
+                          onClick={() => handleDownload(report.file_url, report.title)}
+                        >
+                          <Download className="h-4 w-4 mr-2" />
+                          Download
+                        </Button>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">
-                        {report.title}
-                      </p>
-                      <p className="text-sm text-gray-600">
-                        {report.type} • By {report.doctor}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center">
-                    <span className="text-sm text-gray-500 mr-4">{report.date} • {report.size}</span>
-                    <Button variant="outline" size="sm" className="flex items-center">
-                      <Download className="h-4 w-4 mr-2" />
-                      Download
-                    </Button>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
+                  </motion.div>
+                ))}
+              </div>
+            ) : (
+              <div className="p-8 text-center">
+                <p className="text-gray-500">No reports found.</p>
+              </div>
+            )}
           </div>
         </div>
       </main>

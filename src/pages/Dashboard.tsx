@@ -5,13 +5,142 @@ import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import { getHealthPrediction } from '@/lib/groq';
+import { useEffect } from 'react';
+import { useUser } from '@/lib/useUser'; // Assuming you have a user hook
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const { user } = useUser(); // Get the current user
   const [loading, setLoading] = useState(false);
   const [symptoms, setSymptoms] = useState('');
   const [prediction, setPrediction] = useState('');
   const [isPredicting, setIsPredicting] = useState(false);
+  const [recentPredictions, setRecentPredictions] = useState([]);
+  const [savingPrediction, setSavingPrediction] = useState(false);
+  // Add these new state variables
+  const [riskLevel, setRiskLevel] = useState({ level: 'Low', percentage: 25 });
+  const [nextCheckup, setNextCheckup] = useState({ date: null, daysUntil: 0 });
+  const [statsLoading, setStatsLoading] = useState(true);
+
+  // Add this function after fetchRecentPredictions
+  const fetchUserStats = async () => {
+    if (!user) return;
+    
+    try {
+      // Fetch risk level from recent predictions
+      const { data: predictions } = await supabase
+        .from('predictions')
+        .select('created_at')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(1);
+  
+      // Fetch next appointment
+      const { data: appointments } = await supabase
+        .from('appointments')
+        .select('date')
+        .eq('user_id', user.id)
+        .gte('date', new Date().toISOString())
+        .order('date', { ascending: true })
+        .limit(1);
+  
+      if (appointments?.[0]) {
+        const checkupDate = new Date(appointments[0].date);
+        const today = new Date();
+        const daysUntil = Math.ceil((checkupDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        
+        setNextCheckup({
+          date: checkupDate,
+          daysUntil: daysUntil
+        });
+      }
+    } catch (err) {
+      console.error('Error fetching user stats:', err);
+    } finally {
+      setStatsLoading(false);
+    }
+  };
+
+  // Add fetchUserStats to useEffect
+  useEffect(() => {
+    if (user) {
+      fetchRecentPredictions();
+      fetchUserStats();
+    }
+  }, [user]);
+
+  const fetchRecentPredictions = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('predictions')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(3);
+
+      if (error) throw error;
+      setRecentPredictions(data || []);
+    } catch (err) {
+      console.error('Error fetching predictions:', err);
+    }
+  };
+
+  const savePrediction = async () => {
+    if (!user || !prediction) {
+      console.log("Cannot save: user or prediction missing", { user, prediction }); // Debug log
+      return;
+    }
+    
+    setSavingPrediction(true);
+    try {
+      console.log("Saving prediction for user:", user.id); // Debug log
+      
+      const { data, error } = await supabase
+        .from('predictions')
+        .insert({
+          user_id: user.id,
+          symptoms,
+          prediction,
+          created_at: new Date().toISOString(),
+        })
+        .select();
+  
+      if (error) {
+        console.error("Supabase error:", error); // More detailed error
+        throw error;
+      }
+      
+      console.log("Prediction saved successfully:", data); // Confirm save
+  
+      // Refresh the recent predictions list
+      await fetchRecentPredictions();
+    } catch (err) {
+      console.error('Error saving prediction:', err);
+    } finally {
+      setSavingPrediction(false);
+    }
+  };
+
+  const handleGetPrediction = async () => {
+    if (!symptoms.trim()) return;
+    
+    setIsPredicting(true);
+    try {
+      const result = await getHealthPrediction(symptoms);
+      if (result) {
+        setPrediction(result);
+        // Only save if we have a valid result
+        if (user) {
+          await savePrediction();
+        }
+      }
+    } catch (error) {
+      console.error('Error getting prediction:', error);
+      setPrediction('Error getting prediction. Please try again.');
+    } finally {
+      setIsPredicting(false);
+    }
+  };
 
   const handleSignOut = async () => {
     setLoading(true);
@@ -23,21 +152,6 @@ export default function Dashboard() {
       console.error('Error signing out:', err);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleGetPrediction = async () => {
-    if (!symptoms.trim()) return;
-    
-    setIsPredicting(true);
-    try {
-      const result = await getHealthPrediction(symptoms);
-      setPrediction(result);
-    } catch (error) {
-      console.error('Error getting prediction:', error);
-      setPrediction('Error getting prediction. Please try again.');
-    } finally {
-      setIsPredicting(false);
     }
   };
 
@@ -111,12 +225,21 @@ export default function Dashboard() {
               {isPredicting ? 'Analyzing...' : 'Get Assessment'}
             </Button>
             {prediction && (
-              <div className="mt-4 p-4 bg-gray-50 rounded-md">
-                <h3 className="text-md font-medium text-gray-900 mb-2">Assessment:</h3>
-                <p className="text-gray-700 whitespace-pre-line">{prediction}</p>
-                <p className="text-xs text-gray-500 mt-2">
-                  Note: This is an AI-generated assessment and should not replace professional medical advice.
-                </p>
+              <div className="mt-4 p-5 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-100 shadow-sm">
+                <h3 className="text-md font-semibold text-gray-900 mb-3 flex items-center">
+                  <Brain className="h-5 w-5 mr-2 text-primary" />
+                  Assessment Results
+                </h3>
+                <div className="text-gray-700 whitespace-pre-line bg-white p-4 rounded-md border border-gray-100">
+                  {prediction}
+                </div>
+                <div className="mt-3 p-3 bg-yellow-50 rounded-md border border-yellow-100 flex items-start">
+                  <AlertCircle className="h-5 w-5 text-yellow-500 mr-2 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-gray-600">
+                    This is an AI-generated assessment and should not replace professional medical advice.
+                    Please consult with a healthcare provider for proper diagnosis.
+                  </p>
+                </div>
               </div>
             )}
           </div>
@@ -127,22 +250,51 @@ export default function Dashboard() {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-white p-6 rounded-lg shadow-sm border border-gray-200"
+            className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow"
           >
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Risk Level</p>
-                <p className="text-2xl font-bold text-gray-900">Low</p>
+                <p className="text-2xl font-bold text-gray-900">{riskLevel.level}</p>
               </div>
               <div className="h-12 w-12 bg-green-100 rounded-full flex items-center justify-center">
                 <AlertCircle className="h-6 w-6 text-green-600" />
               </div>
             </div>
             <div className="mt-4">
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div className="bg-green-500 h-2 rounded-full" style={{ width: '25%' }} />
+              <div className="w-full bg-gray-200 rounded-full h-2.5">
+                <div 
+                  className="bg-green-500 h-2.5 rounded-full" 
+                  style={{ width: `${riskLevel.percentage}%` }} 
+                />
               </div>
             </div>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="bg-white p-6 rounded-lg shadow-sm border border-gray-200"
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Next Checkup</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {nextCheckup.date 
+                    ? new Date(nextCheckup.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                    : 'No upcoming'}
+                </p>
+              </div>
+              <div className="h-12 w-12 bg-blue-100 rounded-full flex items-center justify-center">
+                <Calendar className="h-6 w-6 text-blue-600" />
+              </div>
+            </div>
+            <p className="mt-4 text-sm text-gray-600">
+              {nextCheckup.date 
+                ? `In ${nextCheckup.daysUntil} days`
+                : 'No appointments scheduled'}
+            </p>
           </motion.div>
 
           <motion.div
@@ -187,31 +339,44 @@ export default function Dashboard() {
         </div>
 
         {/* Recent Activity */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-          <div className="p-6 border-b border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-900">Recent Activity</h2>
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow">
+          <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white">
+            <h2 className="text-lg font-semibold text-gray-900 flex items-center">
+              <Activity className="h-5 w-5 mr-2 text-primary" />
+              Recent Activity
+            </h2>
           </div>
           <div className="divide-y divide-gray-200">
-            {[1, 2, 3].map((_, index) => (
-              <div key={index} className="p-6 hover:bg-gray-50 transition-colors">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="h-10 w-10 bg-primary/10 rounded-full flex items-center justify-center">
-                      <Brain className="h-5 w-5 text-primary" />
+            {recentPredictions.length > 0 ? (
+              recentPredictions.map((pred, index) => (
+                <div key={pred.id} className="p-6 hover:bg-gray-50 transition-colors">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <div className="h-10 w-10 bg-primary/10 rounded-full flex items-center justify-center">
+                        <Brain className="h-5 w-5 text-primary" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">
+                          Health Assessment
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          {pred.symptoms.length > 50 
+                            ? `${pred.symptoms.substring(0, 50)}...` 
+                            : pred.symptoms}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">
-                        Disease Prediction Completed
-                      </p>
-                      <p className="text-sm text-gray-600">
-                        Analysis based on reported symptoms
-                      </p>
-                    </div>
+                    <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+                      {new Date(pred.created_at).toLocaleString()}
+                    </span>
                   </div>
-                  <span className="text-sm text-gray-500">2 hours ago</span>
                 </div>
+              ))
+            ) : (
+              <div className="p-6 text-center text-gray-500">
+                No recent predictions found
               </div>
-            ))}
+            )}
           </div>
         </div>
       </main>
